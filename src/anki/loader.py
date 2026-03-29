@@ -5,10 +5,10 @@ import sys
 class TextFileLoader:
     def __init__(self, *, file_path="./words.txt"):
         # Преобразуем переданный путь в объект Path
-        self.file_path = Path(file_path)
+        self._file_path = Path(file_path)
 
         # Проверяем, что путь не является директорией
-        if self.file_path.is_dir():
+        if self._file_path.is_dir():
             raise ValueError(
                 f"Указанный путь '{file_path}' является директорией, "
                 f"а должен быть файлом")
@@ -21,11 +21,11 @@ class TextFileLoader:
         words = {}
 
         # Проверяем, существует ли файл
-        if not self.file_path.exists():
+        if not self._file_path.exists():
             return words
 
         try:
-            with open(self.file_path, "r", encoding="utf-8") as file:
+            with open(self._file_path, "r", encoding="utf-8") as file:
                 for line in file:
                     line = line.strip()
                     if not line:  # Пропускаем пустые строки
@@ -39,7 +39,7 @@ class TextFileLoader:
                             words[word] = translation
             return words
         except FileNotFoundError:
-            print(f"Ошибка: файл '{self.file_path}' не найден")
+            print(f"Ошибка: файл '{self._file_path}' не найден")
             sys.exit(1)
 
     def save_words(self, words):
@@ -53,7 +53,7 @@ class TextFileLoader:
                 f'Параметр `words` должен быть словарём, получен '
                 f'{type(words).__name__}')
 
-        with open(self.file_path, "w", encoding="utf-8") as file:
+        with open(self._file_path, "w", encoding="utf-8") as file:
             for word, translation in words.items():
                 file.write(f"{word},{translation}\n")
-        print(f"Было сохранено {len(words)} слов в файл {self.file_path}")
+        print(f"Было сохранено {len(words)} слов в файл {self._file_path}")
