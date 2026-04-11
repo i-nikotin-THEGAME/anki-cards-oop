@@ -1,61 +1,22 @@
 from pathlib import Path
-import sys
+# import sys
 
 
-class TextFileLoader:
-    """
-    Класс для загрузки и сохранения словаря слов из текстового файла и в файл.
+class BaseFileLoader:
+    DEFAULT_FILE_PATH = "./words.txt"
 
-    Обеспечивает чтение данных из файла в формате "слово,перевод" и запись
-    словаря обратно в файл. Поддерживает валидацию пути и обработку ошибок
-    ввода-вывода.
+    def __init__(self, file_path=None):
+        if file_path is None:
+            # Если путь не передали явно, используем значение
+            # по умолчанию, определённое в теле класса.
+            file_path = self.DEFAULT_FILE_PATH
 
-    Формат файла:
-        Каждая строка содержит слово и его перевод, разделённые запятой.
-        Пример: "hello,привет"
-
-    Attributes:
-        _file_path (Path): Защищённый атрибут, содержащий путь к файлу
-                           в виде объекта pathlib.Path.
-
-    Examples:
-        >>> loader = TextFileLoader(file_path="./my_words.txt")
-        >>> loader.save_words({"hello": "привет", "world": "мир"})
-        Сохранено 2 слов в файл ./my_words.txt
-
-        >>> loaded_words = loader.load_words()
-        >>> print(loaded_words)
-        {'hello': 'привет', 'world': 'мир'}
-    """
-
-    def __init__(self, *, file_path="./words.txt"):
-        """
-        Инициализирует экземпляр TextFileLoader.
-
-        Args:
-            file_path (str, optional): Путь к файлу для загрузки/сохранения
-                                       слов. По умолчанию "./words.txt".
-
-        Raises:
-            ValueError: Если указанный путь является директорией, а не файлом.
-
-        Examples:
-            >>> loader1 = TextFileLoader()  # Использует путь по умолчанию
-            >>> loader2 = TextFileLoader(file_path="./data/words.txt")
-            >>> loader3 = TextFileLoader(file_path="./")  # Вызовет ValueError
-            Traceback (most recent call last):
-                ...
-            ValueError: Указанный путь './' является директорией,
-            а должен быть файлом
-        """
-        # Преобразуем переданный путь в объект Path
         self._file_path = Path(file_path)
 
-        # Проверяем, что путь не является директорией
-        if self._file_path.is_dir():
+        if self._file_path.exists() and self._file_path.is_dir():
             raise ValueError(
-                f"Указанный путь '{file_path}' является директорией, "
-                f"а должен быть файлом")
+                f"Путь {file_path} является директорией, а должен быть файлом"
+            )
 
     def load_words(self):
         """
@@ -87,30 +48,11 @@ class TextFileLoader:
             >>> print(words2)
             {}
         """
-
-        words = {}
-
-        # Проверяем, существует ли файл
         if not self._file_path.exists():
-            return words
+            return {}
 
-        try:
-            with open(self._file_path, "r", encoding="utf-8") as file:
-                for line in file:
-                    line = line.strip()
-                    if not line:  # Пропускаем пустые строки
-                        continue
-
-                    parts = line.split(",")
-                    if len(parts) == 2:
-                        word = parts[0].strip()
-                        translation = parts[1].strip()
-                        if word and translation:
-                            words[word] = translation
-            return words
-        except FileNotFoundError:
-            print(f"Ошибка: файл '{self._file_path}' не найден")
-            sys.exit(1)
+        with self._file_path.open("r", encoding="utf-8") as f:
+            return self._load_from_file(f)
 
     def save_words(self, words):
         """
@@ -149,14 +91,106 @@ class TextFileLoader:
                 ...
             ValueError: Параметр `words` должен быть словарём, получен list
         """
-
-        # Валидация входных данных
         if not isinstance(words, dict):
-            raise ValueError(
-                f'Параметр `words` должен быть словарём, получен '
-                f'{type(words).__name__}')
+            raise ValueError("Значением параметра `words` должен быть словарь")
 
-        with open(self._file_path, "w", encoding="utf-8") as file:
-            for word, translation in words.items():
-                file.write(f"{word},{translation}\n")
-        print(f"Было сохранено {len(words)} слов в файл {self._file_path}")
+        with self._file_path.open("w", encoding="utf-8") as f:
+            return self._save_to_file(words, f)
+
+    def _load_from_file(self, file_object):
+        """Реализует логику загрузки данных определённого формата
+        из `file_object`.
+
+        Метод должен быть переопределён в наследниках
+
+        Parameters
+        ----------
+        file_object : FileLike
+            FileLike объект, из которого идёт чтение данных
+
+        Returns
+        -------
+        dict
+            Словарь с загруженными словами
+        """
+        raise NotImplementedError
+
+    def _save_to_file(self, words, file_object):
+        """Реализует логику сохранения слов
+        в определённом формате в файл `file_object`.
+
+        Метод должен быть переопределён в наследниках
+
+        Parameters
+        ----------
+        words : dict
+            Словарь с словами и переводами
+        file_object : FileLike
+            FileLike объект, из которого идёт чтение данных
+
+        Returns
+        -------
+        None
+        """
+        raise NotImplementedError
+
+
+class TextFileLoader(BaseFileLoader):
+    """
+    Класс для загрузки и сохранения словаря слов из текстового файла и в файл.
+
+    Обеспечивает чтение данных из файла в формате "слово,перевод" и запись
+    словаря обратно в файл. Поддерживает валидацию пути и обработку ошибок
+    ввода-вывода.
+
+    Формат файла:
+        Каждая строка содержит слово и его перевод, разделённые запятой.
+        Пример: "hello,привет"
+
+    Attributes:
+        _file_path (Path): Защищённый атрибут, содержащий путь к файлу
+                           в виде объекта pathlib.Path.
+
+    Examples:
+        >>> loader = TextFileLoader(file_path="./my_words.txt")
+        >>> loader.save_words({"hello": "привет", "world": "мир"})
+        Сохранено 2 слов в файл ./my_words.txt
+
+        >>> loaded_words = loader.load_words()
+        >>> print(loaded_words)
+        {'hello': 'привет', 'world': 'мир'}
+    """
+    DEFAULT_FILE_PATH = "./words.txt"
+
+    def _load_from_file(self, file_object):
+        """
+        """
+
+        words = {}
+        for line in file_object:
+            word, translation = line.split(",")
+            words[word.strip()] = translation.strip()
+            return words
+
+    def _save_to_file(self, words, file_object):
+        for word, translation in words.items():
+            file_object.write(f'{word},{translation}\n')
+
+
+class TSVFileLoader(BaseFileLoader):
+    """
+    Реализует загрузку слов из TSV-файла и логику сохранения
+    слов в TSV файл
+    """
+    DEFAULT_FILE_PATH = "./words.tsv"
+
+    def _load_from_file(self, file_object):
+        words = {}
+        for line in file_object:
+            word, translation = line.split("\t")
+            words[word.strip()] = translation.strip()
+        return words
+
+    def _save_to_file(self, words, file_object):
+        for word, translation in words.items():
+            file_object.write(f'{word}\t{translation}\n')
