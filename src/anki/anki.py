@@ -1,4 +1,5 @@
 import copy
+import random
 
 
 class Anki:
@@ -139,5 +140,157 @@ class Anki:
 
         return copy.deepcopy(self._words)
 
-    def __str__(self) -> str:
-        return f'Колода карт Anki, total_words: {len(self._words)}'
+    # def __str__(self) -> str:
+    #     return f'Колода карт Anki, total_words: {len(self._words)}'
+
+    def __contains__(self, word):
+        """
+        Проверяет, содержится ли слово в словаре.
+
+        Аргументы:
+            word (str): Слово для проверки.
+
+        Возвращает:
+            bool: True, если слово есть в словаре, иначе False.
+
+        Исключения:
+            ValueError: Если word не является строкой.
+
+        Примеры:
+            >>> anki = Anki(words={"Python": "Питон"})
+            >>> "python" in anki
+            True
+            >>> "TypeScript" in anki
+            False
+        """
+        # Нормализуем искомое слово
+        normalized_word = self.normalize_word(word)
+
+        # Проверяем наличие в словаре
+        return normalized_word in self._words
+
+    def __str__(self):
+        """
+        Возвращает строковое представление объекта Anki.
+
+        Возвращает:
+            str: Информация о количестве слов в словаре.
+
+        Примеры:
+            >>> anki = Anki()
+            >>> print(anki)
+            Anki: 0 слов
+
+            >>> anki = Anki(words={"hello": "привет", "world": "мир"})
+            >>> print(anki)
+            Anki: 2 слова
+        """
+        words_count = len(self._words)
+
+        # Выбираем правильное склонение слова "слово"
+        if words_count % 10 == 1 and words_count % 100 != 11:
+            word_form = "слово"
+        elif (
+            2 <= words_count % 10 <= 4
+            and not (12 <= words_count % 100 <= 14)
+        ):
+            word_form = "слова"
+        else:
+            word_form = "слов"
+
+        return f"Колода карт Anki: {words_count} {word_form}"
+
+    def get_random_word(self):
+        """
+        Возвращает случайное слово из словаря.
+
+        Returns:
+            str: Случайное слово из коллекции.
+
+        Raises:
+            ValueError: Если словарь пуст.
+
+        Examples:
+            >>> anki = Anki(words={"hello": "привет", "world": "мир"})
+            >>> word = anki.get_random_word()
+            >>> word in ["hello", "world"]
+            True
+
+            >>> anki = Anki()
+            >>> anki.get_random_word()
+            Traceback (most recent call last):
+                ...
+            ValueError: Невозможно получить случайное слово: словарь пуст
+        """
+        if not self._words:
+            raise ValueError(
+                "Невозможно получить случайное слово: словарь пуст"
+            )
+
+        return random.choice(list(self._words.keys()))
+
+    def check_translation(self, word, translation):
+        """
+        Проверяет, правильный ли перевод указан для слова.
+
+        Args:
+            word (str): Слово для проверки.
+            translation (str): Перевод, который нужно проверить.
+
+        Returns:
+            bool: True, если перевод верный, иначе False.
+
+        Raises:
+            ValueError: Если слово отсутствует в словаре.
+
+        Examples:
+            >>> anki = Anki(words={"hello": "привет", "world": "мир"})
+            >>> anki.check_translation("hello", "привет")
+            True
+            >>> anki.check_translation("hello", "пока")
+            False
+            >>> anki.check_translation("python", "питон")
+            Traceback (most recent call last):
+                ...
+            ValueError: Слово 'python' отсутствует в словаре
+        """
+        normalized_word = self.normalize_word(word)
+        normalized_translation = self.normalize_word(translation)
+
+        if normalized_word not in self._words:
+            raise ValueError(
+                f"Слово '{word}' отсутствует в словаре"
+            )
+
+        return self._words[normalized_word] == normalized_translation
+
+    def get_translation(self, word):
+        """
+        Возвращает перевод указанного слова.
+
+        Args:
+            word (str): Слово, перевод которого нужно получить.
+
+        Returns:
+            str: Перевод слова.
+
+        Raises:
+            ValueError: Если слово отсутствует в словаре.
+
+        Examples:
+            >>> anki = Anki(words={"hello": "привет", "world": "мир"})
+            >>> anki.get_translation("hello")
+            'привет'
+            >>> anki.get_translation("python")
+            Traceback (most recent call last):
+                ...
+            ValueError: Слово 'python' отсутствует в словаре
+        """
+        normalized_word = self.normalize_word(word)
+
+        if normalized_word not in self._words:
+            raise ValueError(
+                f"Слово '{word}' отсутствует в словаре"
+            )
+
+        return self._words[normalized_word]
