@@ -138,3 +138,6 @@ class Anki:
         """
 
         return copy.deepcopy(self._words)
+
+    def __str__(self) -> str:
+        return f'Колода карт Anki, total_words: {len(self._words)}'
