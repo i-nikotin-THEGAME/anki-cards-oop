@@ -1,5 +1,5 @@
 from pathlib import Path
-# import sys
+import json
 
 
 class BaseFileLoader:
@@ -92,45 +92,62 @@ class BaseFileLoader:
             ValueError: Параметр `words` должен быть словарём, получен list
         """
         if not isinstance(words, dict):
-            raise ValueError("Значением параметра `words` должен быть словарь")
+            # Исправлено: добавляем тип полученного значения
+            received_type = type(words).__name__
+            raise ValueError(
+                f"Параметр `words` должен быть словарём, "
+                f"получен {received_type}"
+                )
 
         with self._file_path.open("w", encoding="utf-8") as f:
             return self._save_to_file(words, f)
 
     def _load_from_file(self, file_object):
-        """Реализует логику загрузки данных определённого формата
-        из `file_object`.
+        """
+        Реализует логику загрузки данных
+        определённого формата из `file_object`.
 
-        Метод должен быть переопределён в наследниках
+        Метод должен быть переопределён в наследниках.
 
         Parameters
         ----------
         file_object : FileLike
-            FileLike объект, из которого идёт чтение данных
+            FileLike объект, из которого идёт чтение данных.
 
         Returns
         -------
         dict
-            Словарь с загруженными словами
+            Словарь с загруженными словами.
+
+        Raises
+        ------
+        NotImplementedError
+            Если метод не переопределён в классе-наследнике.
         """
         raise NotImplementedError
 
     def _save_to_file(self, words, file_object):
-        """Реализует логику сохранения слов
+        """
+        Реализует логику сохранения слов
         в определённом формате в файл `file_object`.
 
-        Метод должен быть переопределён в наследниках
+        Метод должен быть переопределён в наследниках.
 
         Parameters
         ----------
         words : dict
-            Словарь с словами и переводами
+            Словарь с словами и переводами.
         file_object : FileLike
-            FileLike объект, из которого идёт чтение данных
+            FileLike объект, в который производится запись данных.
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        NotImplementedError
+            Если метод не переопределён в классе-наследнике.
         """
         raise NotImplementedError
 
@@ -164,33 +181,214 @@ class TextFileLoader(BaseFileLoader):
 
     def _load_from_file(self, file_object):
         """
-        """
+        Загружает слова из текстового файла
+        в формате CSV (разделитель - запятая).
 
+        Parameters
+        ----------
+        file_object : FileLike
+            Открытый файловый объект для чтения.
+
+        Returns
+        -------
+        dict
+            Словарь вида {"слово": "перевод"}.
+        """
         words = {}
         for line in file_object:
-            word, translation = line.split(",")
-            words[word.strip()] = translation.strip()
-            return words
+            # Пропускаем пустые строки
+            if not line.strip():
+                continue
+
+            try:
+                # Разделяем только по первой запятой
+                word, translation = line.split(",", 1)
+                words[word.strip()] = translation.strip()
+            except ValueError:
+                # Пропускаем строки с некорректным форматом
+                continue
+
+        return words
 
     def _save_to_file(self, words, file_object):
+        """
+        Сохраняет словарь в текстовый файл
+        в формате CSV (разделитель - запятая).
+
+        Parameters
+        ----------
+        words : dict
+            Словарь для сохранения.
+        file_object : FileLike
+            Открытый файловый объект для записи.
+
+        Returns
+        -------
+        None
+        """
         for word, translation in words.items():
             file_object.write(f'{word},{translation}\n')
 
 
 class TSVFileLoader(BaseFileLoader):
     """
-    Реализует загрузку слов из TSV-файла и логику сохранения
-    слов в TSV файл
+    Класс для загрузки и сохранения словаря слов из TSV-файла и в файл.
+
+    Обеспечивает чтение данных из файла в формате "слово\\tперевод" и запись
+    словаря обратно в файл. TSV (Tab-Separated Values) использует символ
+    табуляции в качестве разделителя.
+
+    Формат файла:
+        Каждая строка содержит слово и его перевод,
+        разделённые символом табуляции.
+        Пример: "hello\\tпривет"
+
+    Attributes:
+        _file_path (Path): Защищённый атрибут, содержащий путь к файлу
+                           в виде объекта pathlib.Path.
+
+    Examples:
+        >>> loader = TSVFileLoader(file_path="./my_words.tsv")
+        >>> loader.save_words({"hello": "привет", "world": "мир"})
+        >>> loaded_words = loader.load_words()
+        >>> print(loaded_words)
+        {'hello': 'привет', 'world': 'мир'}
     """
     DEFAULT_FILE_PATH = "./words.tsv"
 
     def _load_from_file(self, file_object):
+        """
+        Загружает слова из TSV-файла (разделитель - табуляция).
+
+        Parameters
+        ----------
+        file_object : FileLike
+            Открытый файловый объект для чтения.
+
+        Returns
+        -------
+        dict
+            Словарь вида {"слово": "перевод"}.
+        """
         words = {}
         for line in file_object:
-            word, translation = line.split("\t")
-            words[word.strip()] = translation.strip()
+            # Пропускаем пустые строки
+            if not line.strip():
+                continue
+
+            try:
+                # Разделяем только по первому табу
+                word, translation = line.split("\t", 1)
+                words[word.strip()] = translation.strip()
+            except ValueError:
+                # Пропускаем строки с некорректным форматом
+                continue
+
         return words
 
     def _save_to_file(self, words, file_object):
+        """
+        Сохраняет словарь в TSV-файл (разделитель - табуляция).
+
+        Parameters
+        ----------
+        words : dict
+            Словарь для сохранения.
+        file_object : FileLike
+            Открытый файловый объект для записи.
+
+        Returns
+        -------
+        None
+        """
         for word, translation in words.items():
             file_object.write(f'{word}\t{translation}\n')
+
+
+class JsonFileLoader(BaseFileLoader):
+    """
+    Класс для загрузки и сохранения словаря слов из JSON-файла и в файл.
+
+    Обеспечивает чтение данных из JSON-файла, который должен содержать
+    объект (словарь) с парами "слово": "перевод". Запись словаря обратно
+    в файл выполняется в форматированном JSON-виде.
+
+    Формат файла:
+        JSON-объект с ключами-словами и значениями-переводами.
+        Пример: {"hello": "привет", "world": "мир"}
+
+    Attributes:
+        _file_path (Path): Защищённый атрибут, содержащий путь к файлу
+                           в виде объекта pathlib.Path.
+
+    Examples:
+        >>> loader = JsonFileLoader(file_path="./my_words.json")
+        >>> loader.save_words({"hello": "привет", "world": "мир"})
+        >>> loaded_words = loader.load_words()
+        >>> print(loaded_words)
+        {'hello': 'привет', 'world': 'мир'}
+    """
+    DEFAULT_FILE_PATH = "./words.json"
+
+    def _load_from_file(self, file_object):
+        """
+        Загружает словарь из JSON-файла.
+
+        Parameters
+        ----------
+        file_object : FileLike
+            Открытый файловый объект для чтения.
+
+        Returns
+        -------
+        dict
+            Словарь вида {"слово": "перевод"}.
+
+        Notes
+        -----
+        Если JSON-файл содержит не словарь, а другой тип данных,
+        метод вернёт пустой словарь.
+        """
+        try:
+            data = json.load(file_object)
+            # Проверяем, что загруженные данные являются словарём
+            if isinstance(data, dict):
+                return data
+            else:
+                # Если в JSON не словарь, возвращаем пустой словарь
+                return {}
+        except json.JSONDecodeError:
+            # При ошибке парсинга JSON возвращаем пустой словарь
+            return {}
+
+    def _save_to_file(self, words, file_object):
+        """
+        Сохраняет словарь в JSON-файл с форматированием.
+
+        Параметры форматирования:
+            - indent=2: создаёт читаемый JSON с отступами в 2 пробела
+            - ensure_ascii=False: сохраняет кириллицу и другие Unicode-символы
+              в исходном виде, а не в виде escape-последовательностей
+
+        Parameters
+        ----------
+        words : dict
+            Словарь для сохранения.
+        file_object : FileLike
+            Открытый файловый объект для записи.
+
+        Returns
+        -------
+        None
+
+        Examples
+        --------
+        >>> loader = JsonFileLoader()
+        >>> loader.save_words({"привет": "hello", "мир": "world"}, file)
+        # В файл будет записано:
+        # {
+        #   "привет": "hello",
+        #   "мир": "world"
+        # }
+        """
+        json.dump(words, file_object, indent=2, ensure_ascii=False)
