@@ -1,6 +1,6 @@
 import textwrap
 
-from anki.anki import Anki
+# from anki.anki import Anki
 
 
 class TextUI:
@@ -29,10 +29,10 @@ class TextUI:
             >>> anki = Anki()
             >>> ui = TextUI(anki)
         """
-        if not isinstance(anki_game, Anki):
-            raise ValueError(
-                "Аргумент должен быть экземпляром класса Anki"
-            )
+        # if not isinstance(anki_game, Anki):
+        #     raise ValueError(
+        #         "Аргумент должен быть экземпляром класса Anki"
+        #     )
 
         self._anki_game = anki_game
 
@@ -46,8 +46,8 @@ class TextUI:
             >>> ui = TextUI(anki)
             >>> # Пользователь вводит: привет, мир, выход
         """
-        print("\nИгра началась!")
         print(f"Для выхода из игры введите '{self.STOP_WORD}'")
+        print("\nИгра началась!")
         print("-" * 40)
 
         while True:
@@ -74,6 +74,7 @@ class TextUI:
             except ValueError as e:
                 print(f"Ошибка: {e}")
                 print("Попробуйте снова.")
+                break
 
     def add_words(self):
         """
@@ -86,8 +87,8 @@ class TextUI:
             >>> ui = TextUI(anki)
             >>> # Пользователь вводит: hello, привет, python, питон, выход
         """
-        print("\nДобавление новых слов!")
         print(f"Для завершения введите '{self.STOP_WORD}'")
+        print("\nДобавление новых слов!")
         print("-" * 40)
 
         while True:
@@ -127,13 +128,13 @@ class TextUI:
             print("\nСловарь пуст. Добавьте слова через пункт меню 2.")
             return
 
-        print("\nСписок всех слов:")
-        print("-" * 40)
+        # print("\nСписок всех слов:")
+        # print("-" * 40)
 
         for word, translation in words.items():
             print(f"{word} - {translation}")
 
-        print("-" * 40)
+        # print("-" * 40)
 
     def main_loop(self):
         """

@@ -85,7 +85,10 @@ def test_normalize_word_raises_ValueError_on_invalid_input(invalid_input):
         ({}, None),    # Пустой словарь не вызывает ошибку
     ]
 )
-def test_anki_init(invalid_input, expected_error_message):
+def test_anki_init_raises_ValueError_on_invalid_input(
+    invalid_input,
+    expected_error_message
+):
     """Проверяет инициализацию Anki с разными параметрами."""
     if expected_error_message is None:
         # Ожидаем, что ошибки не будет
@@ -136,7 +139,11 @@ def test_anki_init(invalid_input, expected_error_message):
         ("hello", False, "Параметр `word` должен быть строкой, получен bool"),
     ]
 )
-def test_anki_add_word(word, translation, expected_error_pattern):
+def test_anki_add_word_raises_ValueError_on_invalid_input(
+    word,
+    translation,
+    expected_error_pattern
+):
     """Проверяет добавление слов с разными параметрами."""
     anki = Anki()
 

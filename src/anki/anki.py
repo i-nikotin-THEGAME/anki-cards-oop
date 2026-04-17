@@ -143,6 +143,45 @@ class Anki:
     # def __str__(self) -> str:
     #     return f'Колода карт Anki, total_words: {len(self._words)}'
 
+    def __len__(self):
+        """
+        Возвращает количество слов в словаре.
+
+        Returns:
+            int: Количество слов в коллекции.
+
+        Examples:
+            >>> anki = Anki()
+            >>> len(anki)
+            0
+            >>> anki.add_word("hello", "привет")
+            >>> len(anki)
+            1
+            >>> anki.add_word("world", "мир")
+            >>> len(anki)
+            2
+        """
+        return len(self._words)
+
+    def __iter__(self):
+        """
+        Возвращает итератор по парам (слово, перевод).
+
+        Returns:
+            iterator: Итератор, возвращающий кортежи вида (слово, перевод).
+
+        Examples:
+            >>> anki = Anki(words={"hello": "привет", "world": "мир"})
+            >>> list(anki)
+            [('hello', 'привет'), ('world', 'мир')]
+
+            >>> for word, translation in anki:
+            ...     print(f"{word} -> {translation}")
+            hello -> привет
+            world -> мир
+        """
+        return iter(self._words.items())
+
     def __contains__(self, word):
         """
         Проверяет, содержится ли слово в словаре.

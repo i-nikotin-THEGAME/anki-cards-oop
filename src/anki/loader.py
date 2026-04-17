@@ -5,7 +5,7 @@ import json
 class BaseFileLoader:
     DEFAULT_FILE_PATH = "./words.txt"
 
-    def __init__(self, file_path=None):
+    def __init__(self, *, file_path=None):
         if file_path is None:
             # Если путь не передали явно, используем значение
             # по умолчанию, определённое в теле класса.
