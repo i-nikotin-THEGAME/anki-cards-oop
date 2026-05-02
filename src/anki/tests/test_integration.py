@@ -25,7 +25,7 @@ def test_integration(tmp_path):
     anki = Anki(words=loaded_words)
 
     # 4. Проверяем, что get_words() возвращает правильные слова
-    assert anki.get_words() == initial_words
+    assert anki._words == initial_words
 
     # 5. Добавляем новое слово через add_word()
     new_word = "python"
@@ -34,10 +34,10 @@ def test_integration(tmp_path):
 
     # Проверяем, что слово добавилось
     expected_words = {**initial_words, new_word: new_translation}
-    assert anki.get_words() == expected_words
+    assert anki._words == expected_words
 
     # 6. Сохраняем слова через save_words()
-    loader.save_words(anki.get_words())
+    loader.save_words(anki._words)
 
     # 7. Проверяем, что файл содержит все слова (исходные и новое)
     with open(file_path, "r", encoding="utf-8") as f:
@@ -66,14 +66,14 @@ def test_integration_empty_file(tmp_path):
 
     # Создаём Anki с пустым словарём
     anki = Anki(words=loaded_words)
-    assert anki.get_words() == {}
+    assert anki._words == {}
 
     # Добавляем слова
     anki.add_word("cat", "кошка")
     anki.add_word("dog", "собака")
 
     # Сохраняем
-    loader.save_words(anki.get_words())
+    loader.save_words(anki._words)
 
     # Проверяем содержимое файла
     with open(file_path, "r", encoding="utf-8") as f:
@@ -99,14 +99,14 @@ def test_integration_normalization(tmp_path):
     anki = Anki(words=loaded_words)
 
     # Проверяем, что слова нормализовались
-    words = anki.get_words()
+    words = anki._words
     assert words == {"hello": "привет", "world": "мир"}
 
     # Добавляем новое слово с пробелами
     anki.add_word("  PyThOn  ", "  ПиТоН  ")
 
     # Сохраняем
-    loader.save_words(anki.get_words())
+    loader.save_words(anki._words)
 
     # Проверяем, что в файле сохранились нормализованные версии
     with open(file_path, "r", encoding="utf-8") as f:

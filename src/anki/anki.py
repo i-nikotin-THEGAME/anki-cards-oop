@@ -50,11 +50,8 @@ class Anki:
                 raise ValueError(
                     'Значение параметра `words` должно быть словарём')
 
-            # Нормализуем все ключи и значения с помощью normalize_word
-            for key, value in words.items():
-                normalized_key = self.normalize_word(key)
-                normalized_value = self.normalize_word(value)
-                self._words[normalized_key] = normalized_value
+            # Используем нормализацию через защищённый метод
+            self._words = self._normalize_dict(words)
 
     @staticmethod
     def normalize_word(word):
@@ -89,6 +86,41 @@ class Anki:
             )
 
         return word.strip().lower()
+    
+    def _normalize_dict(self, words_dict):
+        """
+        Нормализует все ключи и значения словаря.
+
+        Защищённый метод для устранения дублирования кода.
+        Используется в __init__ и в сеттере words.
+
+        Args:
+            words_dict (dict): Словарь для нормализации.
+
+        Returns:
+            dict: Новый словарь с нормализованными ключами и значениями.
+
+        Raises:
+            ValueError: Если words_dict не является словарём.
+
+        Examples:
+            >>> anki = Anki()
+            >>> anki._normalize_dict({"Hello": "Привет", "  World  ": "  МИР  "})
+            {'hello': 'привет', 'world': 'мир'}
+        """
+        if not isinstance(words_dict, dict):
+            raise ValueError(
+                f'Параметр `words_dict` должен быть словарём, получен '
+                f'{type(words_dict).__name__}'
+            )
+        
+        normalized = {}
+        for key, value in words_dict.items():
+            normalized_key = self.normalize_word(key)
+            normalized_value = self.normalize_word(value)
+            normalized[normalized_key] = normalized_value
+        
+        return normalized
 
     def add_word(self, word, translation):
         """
@@ -120,28 +152,47 @@ class Anki:
 
         self._words[normalized_word] = normalized_translation
 
-    def get_words(self):
+    @property
+    def words(self):
         """
-        Возвращает копию словаря со словами для защиты от внешних изменений.
-
-        Возвращается глубокая копия словаря, чтобы предотвратить нежелательные
-        изменения оригинальных данных через возвращённую ссылку.
+        Геттер для атрибута words. Возвращает копию словаря _words.
 
         Returns:
             dict: Глубокая копия словаря вида {"слово": "перевод"}.
 
         Examples:
             >>> anki = Anki(words={"hello": "привет"})
-            >>> words_copy = anki.get_words()
+            >>> words_copy = anki.words
             >>> words_copy["hello"] = "изменено"  # Не влияет на оригинал
-            >>> anki.get_words()
+            >>> anki.words
             {'hello': 'привет'}
         """
-
         return copy.deepcopy(self._words)
+    
+    @words.setter
+    def words(self, value):
+        """
+        Сеттер для атрибута words. Валидирует и нормализует новый словарь.
 
-    # def __str__(self) -> str:
-    #     return f'Колода карт Anki, total_words: {len(self._words)}'
+        Args:
+            value (dict): Новый словарь вида {"слово": "перевод"}.
+
+        Raises:
+            ValueError: Если value не является словарём.
+
+        Examples:
+            >>> anki = Anki()
+            >>> anki.words = {"Hello": "Привет"}
+            >>> anki.words
+            {'hello': 'привет'}
+            
+            >>> anki.words = "not a dict"  # Вызовет ValueError
+            Traceback (most recent call last):
+                ...
+            ValueError: Значением параметра `words` должен быть словарь
+        """
+        # Валидация и нормализация через защищённый метод
+        self._words = self._normalize_dict(value)
 
     def __len__(self):
         """
