@@ -122,16 +122,18 @@ class TextUI:
             hello - привет
             world - мир
         """
-        words = self._anki_game.get_words()
-
-        if not words:
+        words_count = len(self._anki_game)
+    
+        if words_count == 0:
             print("\nСловарь пуст. Добавьте слова через пункт меню 2.")
             return
+        
+        print(f"Количество слов: {words_count}")
 
         # print("\nСписок всех слов:")
         # print("-" * 40)
 
-        for word, translation in words.items():
+        for word, translation in self._anki_game:
             print(f"{word} - {translation}")
 
         # print("-" * 40)

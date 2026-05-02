@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import requests
 
 
 class BaseFileLoader:
@@ -97,7 +98,7 @@ class BaseFileLoader:
             raise ValueError(
                 f"Параметр `words` должен быть словарём, "
                 f"получен {received_type}"
-                )
+            )
 
         with self._file_path.open("w", encoding="utf-8") as f:
             return self._save_to_file(words, f)
@@ -392,3 +393,106 @@ class JsonFileLoader(BaseFileLoader):
         # }
         """
         json.dump(words, file_object, indent=2, ensure_ascii=False)
+
+
+class JsonNetworkLoader:
+    """
+    Загрузчик словарей из JSON по сети.
+
+    Загружает данные по HTTP/HTTPS URL и интерпретирует их как JSON-объект
+    с парами "слово": "перевод".
+
+    Attributes:
+        url (str): URL для загрузки JSON-файла со словами.
+
+    Examples:
+        >>> loader = JsonNetworkLoader("https://example.com/words.json")
+        >>> words = loader.load_words()
+        >>> print(words)
+        {'hello': 'привет', 'world': 'мир'}
+
+        >>> loader.save_words({"test": "тест"})  # Ничего не делает
+    """
+
+    def __init__(self, url):
+        """
+        Инициализирует загрузчик с указанным URL.
+
+        Parameters
+        ----------
+        url : str
+            URL для загрузки JSON-файла со словами.
+        """
+        self.url = url
+
+    def load_words(self):
+        """
+        Загружает словарь из JSON по URL из атрибута url.
+
+        Выполняет HTTP GET-запрос по сохранённому URL, ожидая JSON-ответ
+        в формате словаря {"слово": "перевод"}.
+
+        Returns:
+            dict: Словарь вида {"слово": "перевод"}.
+                Возвращает пустой словарь {} в случае ошибки:
+                - сетевые проблемы
+                - некорректный JSON
+                - ответ не является словарём
+
+        Raises:
+            requests.RequestException: При проблемах с сетевым запросом
+                                        (необязательно, но можно поймать внутри)
+
+        Notes:
+            - Требует установленной библиотеки requests
+            - Метод не сохраняет загруженные данные локально
+            - При ошибках возвращает пустой словарь вместо исключения
+
+        Examples:
+            >>> loader = JsonNetworkLoader("https://code.s3.yandex.net/fullstack_developer/python-words")
+            >>> words = loader.load_words()
+            >>> isinstance(words, dict)
+            True
+        """
+        try:
+            response = requests.get(self.url)
+            response.raise_for_status()  # Выбросит исключение при HTTP-ошибке
+
+            data = response.json()
+
+            # Проверяем, что загруженные данные являются словарём
+            if isinstance(data, dict):
+                return data
+            else:
+                print(f"Предупреждение: данные по URL {self.url} не являются словарём. Возвращаем пустой словарь.")
+                return {}
+        except (requests.RequestException, json.JSONDecodeError):
+            # При любой ошибке возвращаем пустой словарь
+            print(
+                f"Предупреждение: ошибка при загрузке {self.url}. Возвращаем пустой словарь.")
+            return {}
+
+    def save_words(self, words):
+        """
+        Метод-заглушка для сохранения словаря.
+
+        В текущей реализации метод ничего не делает, так как сетевое
+        сохранение не требуется для данной задачи.
+
+        Parameters
+        ----------
+        words : dict
+            Словарь, который теоретически нужно сохранить (игнорируется).
+
+        Returns:
+            None
+
+        Notes:
+            Метод существует только для совместимости интерфейса
+            с другими загрузчиками (TextFileLoader, TSVFileLoader и т.д.).
+
+        Examples:
+            >>> loader = JsonNetworkLoader("https://example.com/words.json")
+            >>> loader.save_words({"test": "тест"})  # Не делает ничего
+        """
+        pass  # Метод-заглушка, ничего не делает
