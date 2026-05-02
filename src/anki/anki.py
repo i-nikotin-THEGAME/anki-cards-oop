@@ -1,5 +1,6 @@
 import copy
 import random
+import time
 
 
 class Anki:
@@ -53,6 +54,19 @@ class Anki:
             # Используем нормализацию через защищённый метод
             self._words = self._normalize_dict(words)
 
+        # Начата ли сессия тренировки до первой ошибки.
+        self._session_active = False
+        # Время начала тренировки.
+        self._session_start_time = 0.0
+        # Количество правильных ответов.
+        self._session_user_score = 0
+
+        # Информация о последней тренировке.
+        self.last_session_stats = {
+            "correct_answers": 0,
+            "total_time": 0.0,
+        }
+
     @staticmethod
     def normalize_word(word):
         """
@@ -86,7 +100,7 @@ class Anki:
             )
 
         return word.strip().lower()
-    
+
     def _normalize_dict(self, words_dict):
         """
         Нормализует все ключи и значения словаря.
@@ -113,13 +127,13 @@ class Anki:
                 f'Параметр `words_dict` должен быть словарём, получен '
                 f'{type(words_dict).__name__}'
             )
-        
+
         normalized = {}
         for key, value in words_dict.items():
             normalized_key = self.normalize_word(key)
             normalized_value = self.normalize_word(value)
             normalized[normalized_key] = normalized_value
-        
+
         return normalized
 
     def add_word(self, word, translation):
@@ -168,7 +182,7 @@ class Anki:
             {'hello': 'привет'}
         """
         return copy.deepcopy(self._words)
-    
+
     @words.setter
     def words(self, value):
         """
@@ -178,19 +192,27 @@ class Anki:
             value (dict): Новый словарь вида {"слово": "перевод"}.
 
         Raises:
-            ValueError: Если value не является словарём.
+            ValueError: Если value не является словарём или если попытка
+                    замены словаря происходит во время активной тренировки.
 
         Examples:
             >>> anki = Anki()
             >>> anki.words = {"Hello": "Привет"}
             >>> anki.words
             {'hello': 'привет'}
-            
+
             >>> anki.words = "not a dict"  # Вызовет ValueError
             Traceback (most recent call last):
                 ...
             ValueError: Значением параметра `words` должен быть словарь
         """
+        # Защита от замены словаря во время активной тренировки
+        if self._session_active:
+            raise ValueError(
+                "Невозможно полностью заменить словарь во время активной тренировки. "
+                "Сначала завершите тренировку."
+            )
+
         # Валидация и нормализация через защищённый метод
         self._words = self._normalize_dict(value)
 
@@ -294,6 +316,9 @@ class Anki:
         """
         Возвращает случайное слово из словаря.
 
+        При активной сессии запоминает последнее выданное слово для
+        последующей проверки.
+
         Returns:
             str: Случайное слово из коллекции.
 
@@ -317,7 +342,13 @@ class Anki:
                 "Невозможно получить случайное слово: словарь пуст"
             )
 
-        return random.choice(list(self._words.keys()))
+        word = random.choice(list(self._words.keys()))
+
+        # Если сессия активна, запоминаем выданное слово
+        if self._session_active:
+            self._last_word = word
+
+        return word
 
     def check_translation(self, word, translation):
         """
@@ -331,7 +362,9 @@ class Anki:
             bool: True, если перевод верный, иначе False.
 
         Raises:
-            ValueError: Если слово отсутствует в словаре.
+            ValueError: Если слово отсутствует в словаре или при активной
+                    сессии переданное слово не совпадает с последним
+                    выданным словом.
 
         Examples:
             >>> anki = Anki(words={"hello": "привет", "world": "мир"})
@@ -352,7 +385,27 @@ class Anki:
                 f"Слово '{word}' отсутствует в словаре"
             )
 
-        return self._words[normalized_word] == normalized_translation
+        is_correct = self._words[normalized_word] == normalized_translation
+
+        # Логика сессии
+        if self._session_active:
+            # Проверяем, что переданное слово совпадает с последним выданным
+            if not hasattr(self, '_last_word') or self._last_word != normalized_word:
+                # Завершаем сессию и выбрасываем исключение
+                self.end_session()
+                raise ValueError(
+                    f"Ошибка тренировки: ожидалась проверка слова '{self._last_word if hasattr(self, '_last_word') else '?'}', "
+                    f"а получено '{normalized_word}'. Тренировка завершена."
+                )
+
+            if is_correct:
+                self._session_user_score += 1
+                # Сбрасываем последнее слово, чтобы нельзя было проверить то же слово дважды
+                self._last_word = None
+            else:
+                self.end_session()
+
+        return is_correct
 
     def get_translation(self, word):
         """
@@ -384,3 +437,33 @@ class Anki:
             )
 
         return self._words[normalized_word]
+
+    def start_session(self):
+        """Начинает новую тренировочную сессию."""
+        if self._session_active:
+            raise RuntimeError("Нельзя начать тренировку, если она уже начата")
+
+        if not self._words:
+            raise ValueError("Нельзя начать тренировку: словарь пуст")
+
+        self._session_active = True
+        self._session_start_time = time.time()
+        self._session_user_score = 0
+        self._last_word = None
+
+    def end_session(self):
+        """Завершает текущую тренировочную сессию."""
+        if not self._session_active:
+            raise RuntimeError("Нельзя завершить неактивную сессию")
+
+        # Сохраняем статистику
+        self.last_session_stats = {
+            "correct_answers": self._session_user_score,
+            "total_time": time.time() - self._session_start_time
+        }
+
+        # Сбрасываем состояние
+        self._session_active = False
+        self._session_user_score = 0
+        self._session_start_time = 0.0
+        self._last_word = None
