@@ -119,7 +119,8 @@ class Anki:
 
         Examples:
             >>> anki = Anki()
-            >>> anki._normalize_dict({"Hello": "Привет", "  World  ": "  МИР  "})
+            >>> anki._normalize_dict({"Hello": "Привет",
+            >>> "  World  ": "  МИР  "})
             {'hello': 'привет', 'world': 'мир'}
         """
         if not isinstance(words_dict, dict):
@@ -209,7 +210,8 @@ class Anki:
         # Защита от замены словаря во время активной тренировки
         if self._session_active:
             raise ValueError(
-                "Невозможно полностью заменить словарь во время активной тренировки. "
+                "Невозможно полностью заменить словарь во время активной "
+                "тренировки. "
                 "Сначала завершите тренировку."
             )
 
@@ -390,17 +392,21 @@ class Anki:
         # Логика сессии
         if self._session_active:
             # Проверяем, что переданное слово совпадает с последним выданным
-            if not hasattr(self, '_last_word') or self._last_word != normalized_word:
+            if (not hasattr(self, '_last_word') or
+                    self._last_word != normalized_word):
                 # Завершаем сессию и выбрасываем исключение
                 self.end_session()
                 raise ValueError(
-                    f"Ошибка тренировки: ожидалась проверка слова '{self._last_word if hasattr(self, '_last_word') else '?'}', "
+                    f"Ошибка тренировки: ожидалась проверка слова "
+                    f"'{self._last_word if hasattr(self, '_last_word')
+                        else '?'}', "
                     f"а получено '{normalized_word}'. Тренировка завершена."
                 )
 
             if is_correct:
                 self._session_user_score += 1
-                # Сбрасываем последнее слово, чтобы нельзя было проверить то же слово дважды
+                # Сбрасываем последнее слово,
+                # чтобы нельзя было проверить то же слово дважды
                 self._last_word = None
             else:
                 self.end_session()

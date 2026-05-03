@@ -153,6 +153,32 @@ class BaseFileLoader:
         raise NotImplementedError
 
 
+class LoaderRegistry:
+
+    def __init__(self):
+        self._registry = {}
+
+    def register(self, ident):
+        """Регистрирует класс загрузчик в реестре `self._registry`"""
+        def decorator(cls):
+            self._registry[ident] = cls
+            return cls
+
+        return decorator
+
+    def get_loader(self, ident):
+        """Выбирает конкретный класс загрузчика по идентификатору"""
+
+        try:
+            return self._registry[ident]
+        except KeyError:
+            raise ValueError(f"Неизвестный тип источника слов: {ident}")
+
+
+loader_registry = LoaderRegistry()
+
+
+@loader_registry.register('.txt')
 class TextFileLoader(BaseFileLoader):
     """
     Класс для загрузки и сохранения словаря слов из текстового файла и в файл.
@@ -231,6 +257,7 @@ class TextFileLoader(BaseFileLoader):
             file_object.write(f'{word},{translation}\n')
 
 
+@loader_registry.register('.tsv')
 class TSVFileLoader(BaseFileLoader):
     """
     Класс для загрузки и сохранения словаря слов из TSV-файла и в файл.
@@ -306,6 +333,7 @@ class TSVFileLoader(BaseFileLoader):
             file_object.write(f'{word}\t{translation}\n')
 
 
+@loader_registry.register('.json')
 class JsonFileLoader(BaseFileLoader):
     """
     Класс для загрузки и сохранения словаря слов из JSON-файла и в файл.
@@ -395,6 +423,7 @@ class JsonFileLoader(BaseFileLoader):
         json.dump(words, file_object, indent=2, ensure_ascii=False)
 
 
+@loader_registry.register('http')
 class JsonNetworkLoader:
     """
     Загрузчик словарей из JSON по сети.
@@ -441,7 +470,7 @@ class JsonNetworkLoader:
 
         Raises:
             requests.RequestException: При проблемах с сетевым запросом
-                                        (необязательно, но можно поймать внутри)
+                                (необязательно, но можно поймать внутри)
 
         Notes:
             - Требует установленной библиотеки requests
@@ -449,7 +478,9 @@ class JsonNetworkLoader:
             - При ошибках возвращает пустой словарь вместо исключения
 
         Examples:
-            >>> loader = JsonNetworkLoader("https://code.s3.yandex.net/fullstack_developer/python-words")
+            >>> loader = JsonNetworkLoader(
+            "https://code.s3.yandex.net/fullstack_developer/python-words"
+            )
             >>> words = loader.load_words()
             >>> isinstance(words, dict)
             True
@@ -464,12 +495,15 @@ class JsonNetworkLoader:
             if isinstance(data, dict):
                 return data
             else:
-                print(f"Предупреждение: данные по URL {self.url} не являются словарём. Возвращаем пустой словарь.")
+                print(
+                    f"Предупреждение: данные по URL {self.url} "
+                    "не являются словарём. Возвращаем пустой словарь.")
                 return {}
         except (requests.RequestException, json.JSONDecodeError):
             # При любой ошибке возвращаем пустой словарь
             print(
-                f"Предупреждение: ошибка при загрузке {self.url}. Возвращаем пустой словарь.")
+                f"Предупреждение: ошибка при загрузке {self.url}. "
+                "Возвращаем пустой словарь.")
             return {}
 
     def save_words(self, words):

@@ -1,3 +1,5 @@
+import time
+
 import pytest
 import importlib
 import unittest.mock
@@ -674,6 +676,8 @@ class TestAnkiTrainingSession:
         assert anki_with_words._session_start_time > 0, (
             "Метод `start_session()` должен сохранять время начала тренировки в атрибут `_session_start_time`"
         )
+        
+        time.sleep(0.001)
 
         anki_with_words.end_session()
         assert anki_with_words._session_active is False, (
