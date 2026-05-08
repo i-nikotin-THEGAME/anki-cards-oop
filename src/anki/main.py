@@ -1,8 +1,8 @@
 import argparse
-import pathlib
+# import pathlib
 
 from anki.anki import Anki
-from anki.loader import loader_registry
+from anki.loader import LoaderProtocol, loader_registry
 from anki.ui import TextUI
 
 
@@ -78,22 +78,14 @@ class GameContext:
         return False  # Не подавляем исключения
 
 
-def get_loader(source):
+def get_loader(source: str) -> LoaderProtocol:
     """
     Автоматические выбирает конкретную реализацию загрузчика,
     в зависимости от `source`.
     """
 
-    if source.startswith("http"):
-        identity = "http"
-        args = {"url": source}
-    else:
-        identity = pathlib.Path(source).suffix
-        args = {"file_path": source}
-
-    loader_cls = loader_registry.get_loader(identity)
-
-    return loader_cls(**args)
+    loader_cls = loader_registry.get_loader(source)
+    return loader_cls.from_source(source)
 
 
 def main():

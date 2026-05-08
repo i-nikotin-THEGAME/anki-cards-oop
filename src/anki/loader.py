@@ -1,6 +1,14 @@
 from pathlib import Path
 import json
+from typing import Callable, Protocol, Self
 import requests
+
+
+class LoaderProtocol(Protocol):
+    def load_words(self) -> dict[str, str]: ...
+    def save_words(self, words: dict[str, str]) -> None: ...
+    @classmethod
+    def from_source(cls, source: str) -> Self: ...
 
 
 class BaseFileLoader:
@@ -155,72 +163,69 @@ class BaseFileLoader:
 
 class LoaderRegistry:
 
-    def __init__(self):
-        self._registry = {}
+    def __init__(self) -> None:
+        self._registry: dict[type[LoaderProtocol], Callable[[str], bool]] = {}
 
-    def register(self, ident):
+    def register(
+        self,
+        predicate: Callable[[str], bool],
+    ) -> Callable[[type[LoaderProtocol]], type[LoaderProtocol]]:
         """Регистрирует класс загрузчик в реестре `self._registry`"""
-        def decorator(cls):
-            self._registry[ident] = cls
+        def decorator(cls: type[LoaderProtocol]) -> type[LoaderProtocol]:
+            self._registry[cls] = predicate
             return cls
-
         return decorator
 
-    def get_loader(self, ident):
+    def get_loader(self, source: str) -> type[LoaderProtocol]:
         """Выбирает конкретный класс загрузчика по идентификатору"""
 
-        try:
-            return self._registry[ident]
-        except KeyError:
-            raise ValueError(f"Неизвестный тип источника слов: {ident}")
+        for loader_cls, predicate in self._registry.items():
+            if predicate(source):
+                return loader_cls
+
+        raise ValueError(f"Неизвестный источник: {source}")
 
 
 loader_registry = LoaderRegistry()
 
 
-@loader_registry.register('.txt')
+def is_txt_source(source: str) -> bool:
+    return source.endswith(".txt")
+
+
+def is_tsv_source(source: str) -> bool:
+    return source.endswith(".tsv")
+
+
+def is_json_source(source: str) -> bool:
+    return source.endswith(".json")
+
+
+def is_http_source(source: str) -> bool:
+    return source.startswith("http")
+
+
+@loader_registry.register(is_txt_source)
 class TextFileLoader(BaseFileLoader):
     """
     Класс для загрузки и сохранения словаря слов из текстового файла и в файл.
-
-    Обеспечивает чтение данных из файла в формате "слово,перевод" и запись
-    словаря обратно в файл. Поддерживает валидацию пути и обработку ошибок
-    ввода-вывода.
-
-    Формат файла:
-        Каждая строка содержит слово и его перевод, разделённые запятой.
-        Пример: "hello,привет"
-
-    Attributes:
-        _file_path (Path): Защищённый атрибут, содержащий путь к файлу
-                           в виде объекта pathlib.Path.
-
-    Examples:
-        >>> loader = TextFileLoader(file_path="./my_words.txt")
-        >>> loader.save_words({"hello": "привет", "world": "мир"})
-        Сохранено 2 слов в файл ./my_words.txt
-
-        >>> loaded_words = loader.load_words()
-        >>> print(loaded_words)
-        {'hello': 'привет', 'world': 'мир'}
     """
     DEFAULT_FILE_PATH = "./words.txt"
 
+    @classmethod
+    def from_source(cls, source: str) -> Self:
+        """
+        Создаёт экземпляр загрузчика из источника.
+
+        Args:
+            source (str): Путь к файлу.
+
+        Returns:
+            Self: Экземпляр TextFileLoader.
+        """
+        return cls(file_path=source)
+
     def _load_from_file(self, file_object):
-        """
-        Загружает слова из текстового файла
-        в формате CSV (разделитель - запятая).
-
-        Parameters
-        ----------
-        file_object : FileLike
-            Открытый файловый объект для чтения.
-
-        Returns
-        -------
-        dict
-            Словарь вида {"слово": "перевод"}.
-        """
         words = {}
         for line in file_object:
             # Пропускаем пустые строки
@@ -238,66 +243,31 @@ class TextFileLoader(BaseFileLoader):
         return words
 
     def _save_to_file(self, words, file_object):
-        """
-        Сохраняет словарь в текстовый файл
-        в формате CSV (разделитель - запятая).
-
-        Parameters
-        ----------
-        words : dict
-            Словарь для сохранения.
-        file_object : FileLike
-            Открытый файловый объект для записи.
-
-        Returns
-        -------
-        None
-        """
         for word, translation in words.items():
             file_object.write(f'{word},{translation}\n')
 
 
-@loader_registry.register('.tsv')
+@loader_registry.register(is_tsv_source)
 class TSVFileLoader(BaseFileLoader):
     """
     Класс для загрузки и сохранения словаря слов из TSV-файла и в файл.
-
-    Обеспечивает чтение данных из файла в формате "слово\\tперевод" и запись
-    словаря обратно в файл. TSV (Tab-Separated Values) использует символ
-    табуляции в качестве разделителя.
-
-    Формат файла:
-        Каждая строка содержит слово и его перевод,
-        разделённые символом табуляции.
-        Пример: "hello\\tпривет"
-
-    Attributes:
-        _file_path (Path): Защищённый атрибут, содержащий путь к файлу
-                           в виде объекта pathlib.Path.
-
-    Examples:
-        >>> loader = TSVFileLoader(file_path="./my_words.tsv")
-        >>> loader.save_words({"hello": "привет", "world": "мир"})
-        >>> loaded_words = loader.load_words()
-        >>> print(loaded_words)
-        {'hello': 'привет', 'world': 'мир'}
     """
     DEFAULT_FILE_PATH = "./words.tsv"
 
+    @classmethod
+    def from_source(cls, source: str) -> Self:
+        """
+        Создаёт экземпляр загрузчика из источника.
+
+        Args:
+            source (str): Путь к файлу.
+
+        Returns:
+            Self: Экземпляр TSVFileLoader.
+        """
+        return cls(file_path=source)
+
     def _load_from_file(self, file_object):
-        """
-        Загружает слова из TSV-файла (разделитель - табуляция).
-
-        Parameters
-        ----------
-        file_object : FileLike
-            Открытый файловый объект для чтения.
-
-        Returns
-        -------
-        dict
-            Словарь вида {"слово": "перевод"}.
-        """
         words = {}
         for line in file_object:
             # Пропускаем пустые строки
@@ -315,69 +285,31 @@ class TSVFileLoader(BaseFileLoader):
         return words
 
     def _save_to_file(self, words, file_object):
-        """
-        Сохраняет словарь в TSV-файл (разделитель - табуляция).
-
-        Parameters
-        ----------
-        words : dict
-            Словарь для сохранения.
-        file_object : FileLike
-            Открытый файловый объект для записи.
-
-        Returns
-        -------
-        None
-        """
         for word, translation in words.items():
             file_object.write(f'{word}\t{translation}\n')
 
 
-@loader_registry.register('.json')
+@loader_registry.register(is_json_source)
 class JsonFileLoader(BaseFileLoader):
     """
     Класс для загрузки и сохранения словаря слов из JSON-файла и в файл.
-
-    Обеспечивает чтение данных из JSON-файла, который должен содержать
-    объект (словарь) с парами "слово": "перевод". Запись словаря обратно
-    в файл выполняется в форматированном JSON-виде.
-
-    Формат файла:
-        JSON-объект с ключами-словами и значениями-переводами.
-        Пример: {"hello": "привет", "world": "мир"}
-
-    Attributes:
-        _file_path (Path): Защищённый атрибут, содержащий путь к файлу
-                           в виде объекта pathlib.Path.
-
-    Examples:
-        >>> loader = JsonFileLoader(file_path="./my_words.json")
-        >>> loader.save_words({"hello": "привет", "world": "мир"})
-        >>> loaded_words = loader.load_words()
-        >>> print(loaded_words)
-        {'hello': 'привет', 'world': 'мир'}
     """
     DEFAULT_FILE_PATH = "./words.json"
 
+    @classmethod
+    def from_source(cls, source: str) -> Self:
+        """
+        Создаёт экземпляр загрузчика из источника.
+
+        Args:
+            source (str): Путь к файлу.
+
+        Returns:
+            Self: Экземпляр JsonFileLoader.
+        """
+        return cls(file_path=source)
+
     def _load_from_file(self, file_object):
-        """
-        Загружает словарь из JSON-файла.
-
-        Parameters
-        ----------
-        file_object : FileLike
-            Открытый файловый объект для чтения.
-
-        Returns
-        -------
-        dict
-            Словарь вида {"слово": "перевод"}.
-
-        Notes
-        -----
-        Если JSON-файл содержит не словарь, а другой тип данных,
-        метод вернёт пустой словарь.
-        """
         try:
             data = json.load(file_object)
             # Проверяем, что загруженные данные являются словарём
@@ -391,100 +323,32 @@ class JsonFileLoader(BaseFileLoader):
             return {}
 
     def _save_to_file(self, words, file_object):
-        """
-        Сохраняет словарь в JSON-файл с форматированием.
-
-        Параметры форматирования:
-            - indent=2: создаёт читаемый JSON с отступами в 2 пробела
-            - ensure_ascii=False: сохраняет кириллицу и другие Unicode-символы
-              в исходном виде, а не в виде escape-последовательностей
-
-        Parameters
-        ----------
-        words : dict
-            Словарь для сохранения.
-        file_object : FileLike
-            Открытый файловый объект для записи.
-
-        Returns
-        -------
-        None
-
-        Examples
-        --------
-        >>> loader = JsonFileLoader()
-        >>> loader.save_words({"привет": "hello", "мир": "world"}, file)
-        # В файл будет записано:
-        # {
-        #   "привет": "hello",
-        #   "мир": "world"
-        # }
-        """
         json.dump(words, file_object, indent=2, ensure_ascii=False)
 
 
-@loader_registry.register('http')
+@loader_registry.register(is_http_source)
 class JsonNetworkLoader:
     """
     Загрузчик словарей из JSON по сети.
-
-    Загружает данные по HTTP/HTTPS URL и интерпретирует их как JSON-объект
-    с парами "слово": "перевод".
-
-    Attributes:
-        url (str): URL для загрузки JSON-файла со словами.
-
-    Examples:
-        >>> loader = JsonNetworkLoader("https://example.com/words.json")
-        >>> words = loader.load_words()
-        >>> print(words)
-        {'hello': 'привет', 'world': 'мир'}
-
-        >>> loader.save_words({"test": "тест"})  # Ничего не делает
     """
 
     def __init__(self, url):
-        """
-        Инициализирует загрузчик с указанным URL.
-
-        Parameters
-        ----------
-        url : str
-            URL для загрузки JSON-файла со словами.
-        """
         self.url = url
 
-    def load_words(self):
+    @classmethod
+    def from_source(cls, source: str) -> Self:
         """
-        Загружает словарь из JSON по URL из атрибута url.
+        Создаёт экземпляр загрузчика из источника (URL).
 
-        Выполняет HTTP GET-запрос по сохранённому URL, ожидая JSON-ответ
-        в формате словаря {"слово": "перевод"}.
+        Args:
+            source (str): URL для загрузки JSON-файла.
 
         Returns:
-            dict: Словарь вида {"слово": "перевод"}.
-                Возвращает пустой словарь {} в случае ошибки:
-                - сетевые проблемы
-                - некорректный JSON
-                - ответ не является словарём
-
-        Raises:
-            requests.RequestException: При проблемах с сетевым запросом
-                                (необязательно, но можно поймать внутри)
-
-        Notes:
-            - Требует установленной библиотеки requests
-            - Метод не сохраняет загруженные данные локально
-            - При ошибках возвращает пустой словарь вместо исключения
-
-        Examples:
-            >>> loader = JsonNetworkLoader(
-            "https://code.s3.yandex.net/fullstack_developer/python-words"
-            )
-            >>> words = loader.load_words()
-            >>> isinstance(words, dict)
-            True
+            Self: Экземпляр JsonNetworkLoader.
         """
+        return cls(url=source)
+
+    def load_words(self):
         try:
             response = requests.get(self.url)
             response.raise_for_status()  # Выбросит исключение при HTTP-ошибке
@@ -507,26 +371,4 @@ class JsonNetworkLoader:
             return {}
 
     def save_words(self, words):
-        """
-        Метод-заглушка для сохранения словаря.
-
-        В текущей реализации метод ничего не делает, так как сетевое
-        сохранение не требуется для данной задачи.
-
-        Parameters
-        ----------
-        words : dict
-            Словарь, который теоретически нужно сохранить (игнорируется).
-
-        Returns:
-            None
-
-        Notes:
-            Метод существует только для совместимости интерфейса
-            с другими загрузчиками (TextFileLoader, TSVFileLoader и т.д.).
-
-        Examples:
-            >>> loader = JsonNetworkLoader("https://example.com/words.json")
-            >>> loader.save_words({"test": "тест"})  # Не делает ничего
-        """
         pass  # Метод-заглушка, ничего не делает
