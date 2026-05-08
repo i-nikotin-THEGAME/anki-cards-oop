@@ -106,65 +106,34 @@ class TextUI:
             >>> ui = TextUI(anki)
             >>> # Пользователь вводит: привет, мир, неправильный_ответ
         """
-        try:
-            # Проверяем, что словарь не пуст
-            # if len(self._anki_game) == 0:
-            #     print("\nНевозможно начать тренировку: словарь пуст.
-            #     Добавьте слова через пункт меню 2.")
-            #     return
+        print(f"Удачной игры до первой ошибки! Чтобы завершить игру введите: "
+              f"{self.STOP_WORD}")
+        training_session = self._anki_game.start_zero_mistakes_training()
 
-            # Начинаем сессию
-            self._anki_game.start_session()
-            print("\n=== Тренировка до первой ошибки ===")
-            print(f"Для выхода из тренировки введите '{self.STOP_WORD}'")
-            print("-" * 40)
+        while True:
+            word = training_session.get_random_word()
+            print(f"Переведите слово: {word}")
 
-            while True:
-                # Получаем случайное слово
-                word = self._anki_game.get_random_word()
-                print(f"\nПереведите слово: {word}")
+            translation = input()
+            if translation == self.STOP_WORD:
+                training_session.end_session()
+                user_stat = training_session.get_stat()
+                print(f"Итоговый счёт: {user_stat['score']},"
+                      f"время игры: {user_stat['total_time']:.3f} секунд")
+                break
 
-                # Получаем ответ пользователя
-                user_answer = input("Ваш перевод: ").strip().lower()
-
-                # Проверяем на выход
-                if user_answer == self.STOP_WORD:
-                    print("\nТренировка прервана пользователем.")
-                    self._anki_game.end_session()
-                    break
-
-                # Проверяем перевод
-                if self._anki_game.check_translation(word, user_answer):
-                    print("✓ Правильно! Продолжаем...")
-                else:
-                    # Неправильный ответ - тренировка завершается
-                    correct = self._anki_game.get_translation(word)
-                    print(f"\n✗ Неправильно! Правильный перевод: {correct}")
-                    # Сессия завершится автоматически в check_translation()
-                    break
-
-        except ValueError as e:
-            print(f"\nОшибка: {e}")
-            # Убеждаемся, что сессия завершена
-            try:
-                if self._anki_game._session_active:
-                    self._anki_game.end_session()
-            except Exception:
-                pass
-
-        # Выводим статистику после завершения тренировки
-        stats = self._anki_game.last_session_stats
-        correct_answers = stats["correct_answers"]
-        total_time = stats["total_time"]
-
-        print("\n" + "=" * 40)
-        print("РЕЗУЛЬТАТЫ ТРЕНИРОВКИ:")
-        print(f"✅ Правильных ответов: {correct_answers}")
-        print(f"⏱️  Общее время: {total_time:.2f} секунд")
-
-        if correct_answers > 0:
-            avg_time = total_time / correct_answers
-            print(f"📊 Среднее время на ответ: {avg_time:.2f} секунд")
+            is_correct = training_session.check_translation(word, translation)
+            if is_correct:
+                print("Все верно!")
+            else:
+                user_stat = training_session.get_stat()
+                print(f"Неправильно, игра окончена, ваш вариант "
+                      f"{repr(translation)} правильный перевод:",
+                      self._anki_game.get_translation(word))
+                print(
+                    f"Итоговый счёт: {user_stat['score']}, "
+                    f"время игры: {user_stat['total_time']:.3f} секунд")
+                break
 
         print("=" * 40)
 

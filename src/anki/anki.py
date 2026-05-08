@@ -3,6 +3,61 @@ import random
 import time
 
 
+class TrainingSession:
+
+    def __init__(self, anki: "Anki") -> None:
+        self.active: bool = True
+
+        self._anki: "Anki" = anki
+        self._start_time: float = time.time()
+        self._end_time: float = self._start_time
+        self._user_score: int = 0
+        self._last_word: str | None = None
+
+    def get_random_word(self) -> str:
+        word = self._anki.get_random_word()
+
+        self._last_word = word
+
+        return word
+
+    def check_translation(self, word: str, translation: str) -> bool:
+        return self._anki.check_translation(word, translation)
+
+    def end_session(self):
+        if not self.active:
+            return
+        self.active = False
+        self._end_time = time.time()
+
+        if self._anki._session_active:
+            return self._anki.end_session()
+
+    def get_stat(self):
+        if self.active:
+            total_time = time.time() - self._start_time
+        else:
+            total_time = self._end_time - self._start_time
+
+        return {
+            "score": self._user_score,
+            "total_time":  total_time
+        }
+
+
+class ZeroMistakesTraining(TrainingSession):
+
+    def check_translation(self, word: str, translation: str) -> bool:
+        is_correct = super().check_translation(word, translation)
+
+        if is_correct:
+            self._user_score += 1
+        else:
+            self.end_session()
+
+        return is_correct
+
+
 class Anki:
     """
     Класс для управления коллекцией слов и их переводов.
@@ -25,7 +80,7 @@ class Anki:
         {'hello': 'привет', 'world': 'мир', 'python': 'питон'}
     """
 
-    def __init__(self, *, words=None):
+    def __init__(self, *, words: dict[str, str] | None = None) -> None:
         """
         Инициализирует экземпляр Anki.
 
@@ -43,25 +98,14 @@ class Anki:
             >>> anki2 = Anki(words={"Cat": "Кошка"})
             >>> anki3 = Anki(words="not a dict")  # Вызовет ValueError
         """
+        words = words if words is not None else {}
 
-        self._words = {}
+        if not isinstance(words, dict):
+            raise ValueError("Значением параметра `words` должен быть словарь")
 
-        if words is not None:
-            if not isinstance(words, dict):
-                raise ValueError(
-                    'Значение параметра `words` должно быть словарём')
-
-            # Используем нормализацию через защищённый метод
-            self._words = self._normalize_dict(words)
-
-        # Начата ли сессия тренировки до первой ошибки.
-        self._session_active = False
-        # Время начала тренировки.
-        self._session_start_time = 0.0
-        # Количество правильных ответов.
+        self._words: dict[str, str] = self._normalize_dict(words)
+        self._session_active: bool = False
         self._session_user_score = 0
-
-        # Информация о последней тренировке.
         self.last_session_stats = {
             "correct_answers": 0,
             "total_time": 0.0,
@@ -185,38 +229,24 @@ class Anki:
         return copy.deepcopy(self._words)
 
     @words.setter
-    def words(self, value):
-        """
-        Сеттер для атрибута words. Валидирует и нормализует новый словарь.
-
-        Args:
-            value (dict): Новый словарь вида {"слово": "перевод"}.
-
-        Raises:
-            ValueError: Если value не является словарём или если попытка
-                    замены словаря происходит во время активной тренировки.
-
-        Examples:
-            >>> anki = Anki()
-            >>> anki.words = {"Hello": "Привет"}
-            >>> anki.words
-            {'hello': 'привет'}
-
-            >>> anki.words = "not a dict"  # Вызовет ValueError
-            Traceback (most recent call last):
-                ...
-            ValueError: Значением параметра `words` должен быть словарь
-        """
-        # Защита от замены словаря во время активной тренировки
+    def words(self, value: dict[str, str]) -> None:
         if self._session_active:
             raise ValueError(
-                "Невозможно полностью заменить словарь во время активной "
-                "тренировки. "
-                "Сначала завершите тренировку."
-            )
-
-        # Валидация и нормализация через защищённый метод
+                "Полное изменение слов недопустимо в ходе активной тренировки"
+                )
         self._words = self._normalize_dict(value)
+
+    def start_zero_mistakes_training(self) -> TrainingSession:
+        if self._session_active:
+            raise RuntimeError("Нельзя начать тренировку, если она уже начата")
+        self._session_active = True
+
+        return ZeroMistakesTraining(self)
+
+    def end_session(self) -> None:
+        if not self._session_active:
+            raise RuntimeError("Нельзя завершить неактивную сессию тренировки")
+        self._session_active = False
 
     def __len__(self):
         """
@@ -352,7 +382,7 @@ class Anki:
 
         return word
 
-    def check_translation(self, word, translation):
+    def check_translation(self, word: str, translation: str) -> bool:
         """
         Проверяет, правильный ли перевод указан для слова.
 
@@ -457,19 +487,19 @@ class Anki:
         self._session_user_score = 0
         self._last_word = None
 
-    def end_session(self):
-        """Завершает текущую тренировочную сессию."""
-        if not self._session_active:
-            raise RuntimeError("Нельзя завершить неактивную сессию")
+    # def end_session(self):
+    #     """Завершает текущую тренировочную сессию."""
+    #     if not self._session_active:
+    #         raise RuntimeError("Нельзя завершить неактивную сессию")
 
-        # Сохраняем статистику
-        self.last_session_stats = {
-            "correct_answers": self._session_user_score,
-            "total_time": time.time() - self._session_start_time
-        }
+    #     # Сохраняем статистику
+    #     self.last_session_stats = {
+    #         "correct_answers": self._session_user_score,
+    #         "total_time": time.time() - self._session_start_time
+    #     }
 
-        # Сбрасываем состояние
-        self._session_active = False
-        self._session_user_score = 0
-        self._session_start_time = 0.0
-        self._last_word = None
+    #     # Сбрасываем состояние
+    #     self._session_active = False
+    #     self._session_user_score = 0
+    #     self._session_start_time = 0.0
+    #     self._last_word = None
