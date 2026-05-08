@@ -1,21 +1,24 @@
-import textwrap
+# import textwrap
+from typing import Callable
+
+from anki.anki import Anki
 
 # from anki.anki import Anki
 
 
 class TextUI:
-    MENU = textwrap.dedent("""\
-        Меню:
-        1. Начать игру
-        2. Добавить слова
-        3. Тренировка до первой ошибки
-        4. Вывод всех слов
-        5. Выход
-    """)
+    # MENU = textwrap.dedent("""\
+    #     Меню:
+    #     1. Начать игру
+    #     2. Добавить слова
+    #     3. Тренировка до первой ошибки
+    #     4. Вывод всех слов
+    #     5. Выход
+    # """)
 
     STOP_WORD = "выход"
 
-    def __init__(self, anki_game):
+    def __init__(self, anki: Anki):
         """
         Инициализирует экземпляр TextUI.
 
@@ -33,10 +36,24 @@ class TextUI:
         #     raise ValueError(
         #         "Аргумент должен быть экземпляром класса Anki"
         #     )
+        self._anki_game = anki
+        self._is_running: bool = False
 
-        self._anki_game = anki_game
+        self._command_definition: list[
+            tuple[Callable[..., None], str, Callable[..., bool]]
+        ] = [
+            (self.start_game, "Начать игру", lambda: len(self._anki_game) > 0),
+            (self.add_words, "Добавить слова", lambda: True),
+            (self.train_until_mistake, "Тренировка до первой ошибки",
+             lambda: len(self._anki_game) > 0),
+            (self.show_words, "Показать все слова",
+             lambda: len(self._anki_game) > 0),
+            (self.find_translation, "Найти перевод",
+             lambda: len(self._anki_game) > 0),
+            (self.stop, "Выход", lambda: True),
+        ]
 
-    def start_game(self):
+    def start_game(self) -> None:
         """
         Запускает игру: показывает случайное слово и проверяет перевод.
         Игра продолжается до тех пор, пока пользователь не введёт STOP_WORD.
@@ -76,7 +93,7 @@ class TextUI:
                 print("Попробуйте снова.")
                 break
 
-    def train_until_mistake(self):
+    def train_until_mistake(self) -> None:
         """
         Режим тренировки до первой ошибки.
 
@@ -151,7 +168,7 @@ class TextUI:
 
         print("=" * 40)
 
-    def add_words(self):
+    def add_words(self) -> None:
         """
         Добавляет новые слова в словарь.
         Пользователь вводит слово и перевод до тех пор,
@@ -186,7 +203,7 @@ class TextUI:
                 print(f"Ошибка: {e}")
                 print("Попробуйте снова.")
 
-    def show_words(self):
+    def show_words(self) -> None:
         """
         Выводит все слова и их переводы в формате "слово - перевод".
 
@@ -211,25 +228,76 @@ class TextUI:
 
         # print("-" * 40)
 
-    def main_loop(self):
+    def stop(self) -> None:
+        self._is_running = False
+
+    def find_translation(self) -> None:
+        """
+        Находит и выводит перевод слова, введённого пользователем.
+
+        Запрашивает у пользователя слово для поиска, нормализует его,
+        ищет в словаре игры и выводит перевод, если слово найдено.
+        Если слово отсутствует в словаре, выводит сообщение с именем команды
+        для добавления слов, взятым из _command_definition.
+        """
+
+        word = input("Введите слово для поиска: ").strip()
+
+        if not word:
+            print("Ошибка: слово не может быть пустым.")
+            return
+
+        try:
+            # Пытаемся получить перевод
+            translation = self._anki_game.get_translation(word)
+            print(f"\nПеревод слова '{word}': {translation}")
+        except ValueError:
+            add_words_description = None
+            for func, description, is_visible in self._command_definition:
+                if func == self.add_words:
+                    add_words_description = description
+                    break
+            # Слово не найдено
+            print(f"\nСлово '{word}' не найдено в словаре.")
+            if add_words_description:
+                print("Вы можете добавить его через пункт "
+                      f"'{add_words_description}'.")
+            else:
+                print("Вы можете добавить его "
+                      "через соответствующий пункт меню.")
+
+    def get_available_commands(self) -> list[tuple[Callable[..., None], str]]:
+        """Возвращает доступные команды для меню."""
+        commands = []
+        for func, description, is_visible in self._command_definition:
+            if is_visible():
+                commands.append((func, description))
+        return commands
+
+    def main_loop(self) -> None:
         """
         Главный цикл приложения: отображает меню и
         обрабатывает ввод пользователя.
         """
-        while True:
-            print(self.MENU)
-            choice = input("Выберите пункт меню: ").strip()
+        self._is_running = True
 
-            if choice == "1":
-                self.start_game()
-            elif choice == "2":
-                self.add_words()
-            elif choice == "3":
-                self.train_until_mistake()
-            elif choice == "4":
-                self.show_words()
-            elif choice == "5":
-                print("До свидания!")
-                break
+        while self._is_running:
+            menu_choices: list[str] = []
+            commands = {}
+
+            for i, (func, description) in enumerate(
+                self.get_available_commands(), 1
+            ):
+                menu_choices.append(f"{i}. {description}")
+                commands[str(i)] = func
+
+            # Показываем меню
+            print("Меню:\n" + "\n".join(menu_choices))
+            choice = input("Выберите пункт: ")
+
+            if choice in commands:
+                commands[choice]()
             else:
-                print("Неверный ввод. Пожалуйста, выберите пункт от 1 до 5.")
+                print("Неверный пункт меню. Пожалуйста, выберите пункт от 1 до"
+                      f" {len(commands)}.")
+            print()
